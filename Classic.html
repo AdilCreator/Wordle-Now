@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-FRKND3F0HW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-FRKND3F0HW');
+</script>
+
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-ML5ZMQ3Z');</script>
+<!-- End Google Tag Manager -->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wordle Now!</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --text: #000000;
+  --cell-border: #555;
+  --correct: #538d4e;
+  --present: #b59f3b;
+  --absent-dark: #3a3a3c;
+  --absent-light: #d3d6da;
+  --key-bg: #d3d6da;
+  --key-text: #000000;
+  --key-border: #999999;
+  --btn-bg: #1976d2;
+  --btn-text: #ffffff;
+  --btn-hover: #1565c0;
+}
+body {
+  margin:0;
+  padding:20px;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+  transition: background 0.3s, color 0.3s;
+}
+h1 {margin-bottom:15px; font-size:2rem;}
+#theme-switch, #play-again {
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  margin: 10px 5px;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: background 0.2s, transform 0.1s;
+}
+#theme-switch:hover, #play-again:hover {
+  background-color: var(--btn-hover);
+  transform: scale(1.05);
+}
+#theme-switch:focus, #play-again:focus {
+  outline: none;
+}
+#board {max-width: 360px; margin: 20px auto; display:grid; gap:5px;}
+.row {display:grid; grid-template-columns: repeat(5,1fr); gap:5px;}
+.cell {
+  width: 60px; height: 60px;
+  border: 2px solid var(--cell-border);
+  font-size:32px; font-weight:bold;
+  display:flex; justify-content:center; align-items:center;
+  text-transform: uppercase;
+  transition: transform 0.1s ease, background 0.3s, color 0.3s;
+}
+.cell.animated {animation: pop 0.15s ease;}
+@keyframes pop {0%{transform: scale(0);}50%{transform: scale(1.2);}100%{transform: scale(1);}}
+.correct{background: var(--correct); color:white;}
+.present{background: var(--present); color:white;}
+.absent {background: var(--absent-dark); color:white;}
+body[data-theme="light"] .absent {background: var(--absent-light); color:black;}
+#keyboard {margin-top:20px; display:flex; flex-wrap:wrap; max-width:360px; margin-left:auto;margin-right:auto;}
+.key {
+  padding:10px; margin:3px;
+  border:1px solid var(--key-border);
+  border-radius:6px;
+  background-color: var(--key-bg);
+  color: var(--key-text);
+  font-weight:bold;
+  flex:1 0 6%;
+  text-align:center;
+  transition: background 0.2s,color 0.2s, transform 0.1s;
+}
+.key:hover {transform: scale(1.05);}
+#msg {margin-top:10px; height:20px; font-weight:bold; font-size:1rem;}
+#play-again {display:none;}
+</style>
+</head>
+<body>
+
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-ML5ZMQ3Z"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+
+<h1>Wordle Now!</h1>
+<button id="theme-switch">Toggle Theme</button>
+<div id="board"></div>
+<div id="keyboard"></div>
+<p id="msg"></p>
+<button id="play-again">Play Again</button>
+
+<script>
+let targetWord = "";
+const maxRows = 6;
+let currentRow = 0, currentCol = 0;
+let grid = [];
+let keyboardKeys = {};
+
+async function getRandomWord() {
+  try {
+    const res = await fetch("https://random-word-api.herokuapp.com/word?length=5");
+    const data = await res.json();
+    return data[0].toUpperCase();
+  } catch { return "APPLE"; }
+}
+
+async function validateWord(word) {
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+    return res.ok;
+  } catch { return false; }
+}
+
+function createBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML="";
+  grid=[];
+  for(let r=0;r<maxRows;r++){
+    const rowEl=document.createElement("div"); rowEl.className="row";
+    const row=[];
+    for(let c=0;c<5;c++){
+      const cell=document.createElement("div"); cell.className="cell";
+      rowEl.appendChild(cell); row.push(cell);
+    }
+    grid.push(row); board.appendChild(rowEl);
+  }
+}
+
+function animateCell(cell){ cell.classList.remove("animated"); void cell.offsetWidth; cell.classList.add("animated"); }
+
+document.addEventListener("keydown", async e=>{
+  if(currentRow>=maxRows) return;
+  const key=e.key.toUpperCase();
+  if(key==="BACKSPACE"){ handleDelete(); return; }
+  if(key==="ENTER"){ await handleEnter(); return; }
+  if(/^[A-Z]$/.test(key)){ handleKey(key); }
+});
+
+function handleKey(k){
+  if(currentCol<5 && currentRow<maxRows){
+    const cell=grid[currentRow][currentCol];
+    cell.innerText=k;
+    animateCell(cell);
+    currentCol++;
+  }
+}
+
+function handleDelete(){
+  if(currentCol>0){
+    currentCol--; const cell=grid[currentRow][currentCol];
+    cell.innerText="";
+    animateCell(cell);
+  }
+}
+
+function updateKeyboard(letter,status){
+  const btn=keyboardKeys[letter];
+  if(!btn) return;
+  const currentBg=btn.style.backgroundColor;
+  if(status==="correct") { btn.style.backgroundColor="#538d4e"; btn.style.color="white"; }
+  else if(status==="present" && currentBg!=="rgb(83, 141, 78)") { btn.style.backgroundColor="#b59f3b"; btn.style.color="white"; }
+  else if(status==="absent" && currentBg!=="rgb(83, 141, 78)" && currentBg!=="rgb(181, 159, 59)") { 
+    btn.style.backgroundColor=(document.body.getAttribute("data-theme")==="light")?"#d3d6da":"#3a3a3c"; 
+    btn.style.color=(document.body.getAttribute("data-theme")==="light")?"black":"white";
+  }
+}
+
+async function handleEnter(){
+  const msg=document.getElementById("msg"); msg.innerText="";
+  let guess=grid[currentRow].map(c=>c.innerText).join("");
+  if(guess.length<5){ msg.innerText="Enter 5 letters!"; return; }
+  if(!await validateWord(guess)){ msg.innerText="Word does not exist!"; return; }
+
+  for(let i=0;i<5;i++){
+    const cell=grid[currentRow][i];
+    if(guess[i]===targetWord[i]){ cell.classList.add("correct"); updateKeyboard(guess[i],"correct"); }
+    else if(targetWord.includes(guess[i])){ cell.classList.add("present"); updateKeyboard(guess[i],"present"); }
+    else{ cell.classList.add("absent"); updateKeyboard(guess[i],"absent"); }
+  }
+
+  if(guess===targetWord){ msg.innerText="🎉 You guessed it!"; endGame(); return; }
+  currentRow++; currentCol=0;
+  if(currentRow===maxRows && guess!==targetWord){ msg.innerText="Game Over! Word: "+targetWord; endGame(); }
+}
+
+function createKeyboard(){
+  const kb=document.getElementById("keyboard");
+  kb.innerHTML=""; keyboardKeys={};
+  const keys="QWERTYUIOPASDFGHJKLZXCVBNM".split("");
+  keys.forEach(k=>{
+    const btn=document.createElement("div"); btn.className="key"; btn.innerText=k;
+    btn.onclick=()=>handleKey(k); kb.appendChild(btn); keyboardKeys[k]=btn;
+  });
+  const enterBtn=document.createElement("div"); enterBtn.className="key"; enterBtn.innerText="ENTER"; enterBtn.onclick=handleEnter; kb.appendChild(enterBtn);
+  const delBtn=document.createElement("div"); delBtn.className="key"; delBtn.innerText="DEL"; delBtn.onclick=handleDelete; kb.appendChild(delBtn);
+}
+
+function initTheme(){
+  const saved=localStorage.getItem("wl-theme");
+  const theme=saved?saved:"light"; document.body.setAttribute("data-theme",theme);
+  if(theme==="dark"){
+    document.documentElement.style.setProperty("--bg","#121213");
+    document.documentElement.style.setProperty("--text","#ffffff");
+  } else{
+    document.documentElement.style.setProperty("--bg","#ffffff");
+    document.documentElement.style.setProperty("--text","#000000");
+  }
+  Object.values(keyboardKeys).forEach(btn=>{
+    if(!btn.style.backgroundColor){ 
+      btn.style.backgroundColor=(theme==="light")?"#d3d6da":"#3a3a3c";
+      btn.style.color=(theme==="light")?"black":"white";
+    }
+  });
+}
+
+function endGame(){ document.getElementById("play-again").style.display="inline-block"; currentRow=maxRows; }
+
+// Fix theme button to prevent Enter key triggering
+document.getElementById("theme-switch").addEventListener("click", (e)=>{
+    e.target.blur();
+    const newTheme = document.body.getAttribute("data-theme")==="dark" ? "light" : "dark";
+    localStorage.setItem("wl-theme", newTheme);
+    initTheme();
+});
+
+// Fix play again button
+document.getElementById("play-again").addEventListener("click",(e)=>{
+    e.target.blur();
+    document.getElementById("play-again").style.display="none";
+    startGame();
+});
+
+async function startGame(){
+  currentRow=0; currentCol=0;
+  document.getElementById("msg").innerText="";
+  targetWord=await getRandomWord();
+  createBoard(); createKeyboard(); initTheme();
+  console.log("Target Word:",targetWord); // for testing
+}
+
+initTheme(); startGame();
+</script>
+</body>
+</html>
